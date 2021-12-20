@@ -64,15 +64,15 @@ contract FinVaultInvestor is Ownable {
     // Check investment pool with the highest interest
     // Invest in the pool with the highest interest
     // map user investment information and balances
-    function stakeFunds(uint _amount) public payable {
+    function stakeFunds(uint amount) public payable {
         require(_amount > 0, "amount cannot be 0");
         IERC20 usdc = IERC20(usdcToken);
-        totalInvestment = totalInvestment.add(_amount);
-        balances[msg.sender] = balances[msg.sender].add(_amount);
-        usdc.transferFrom(msg.sender, address(this), _amount);
+        totalInvestment = totalInvestment.add(amount);
+        balances[msg.sender] = balances[msg.sender].add(amount);
+        usdc.transferFrom(msg.sender, address(this), amount);
         
         //Emit transfer event
-        emit Transfer(msg.sender, address(this), _amount);
+        emit Transfer(msg.sender, address(this), amount);
     }
 
 
@@ -92,15 +92,15 @@ contract FinVaultInvestor is Ownable {
 
     // Redeem investment interest and principal from
     // Transfer to the user
-    function redeemFundsFromContract(uint _amount) public payable {
+    function redeemFundsFromContract(uint amount) public payable {
         //validate balance;
-        require(balances[msg.sender] >= _amount, "Insufficient balance");
-        totalInvestment = totalInvestment.sub(_amount);
-        balances[msg.sender] = balances[msg.sender].sub(_amount);
-        IERC20(usdcToken).transfer(msg.sender, _amount);
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        totalInvestment = totalInvestment.sub(amount);
+        balances[msg.sender] = balances[msg.sender].sub(amount);
+        IERC20(usdcToken).transfer(msg.sender, amount);
         
         //Emit transfer event
-        emit Transfer(msg.sender, address(this), _amount);
+        emit Transfer(msg.sender, address(this), amount);
     }
 
     // Stake AAVE 
@@ -141,7 +141,7 @@ contract FinVaultInvestor is Ownable {
 
     // Stake USDC to COMP protocol
     // send funds to this contracts
-    function stakeComp(uint amount) public {
+    function stakeComp(uint amount) internal {
         stakeFunds(amount);
         uint responseCode = supplyUSDCToCompound(usdcToken, cUsdc, amount);
         emit LogTransaction("Amount supplied to cUSDC successfull", responseCode);
@@ -155,7 +155,7 @@ contract FinVaultInvestor is Ownable {
         uint256 amount,
         bool redeemType,
         address _cErc20Contract
-    ) public returns (bool) {
+    ) internal returns (bool) {
         // Create a reference to the corresponding cToken contract, like cDAI
         CErc20 cToken = CErc20(_cErc20Contract);
 
@@ -173,13 +173,39 @@ contract FinVaultInvestor is Ownable {
         return true;
     }
 
-    function redeemComp(uint amount) public {
+    function redeemComp(uint amount) internal {
         bool result = redeemCUsdcTokens(amount, true, cUsdc);
         // Perhaps a check for successful response?
         redeemFundsFromContract(amount);
     }
 
-    function redeemAave(uint amount) public {}
+    function redeemAave(uint amount) internal {}
+
+
+    // Check interest rate and invest in the corresponding protocol
+    // Invest in corresponding pool
+    function investErc20Token(uint amount) public {
+        address finalInvestmentDestination = compareInterestRate(amount);
+        if(finalInvestmentDestination==liquidityPoolProviderAave.getLendingPool()){
+            stakeAave(amount);
+        }
+        else{
+            stakeComp(amount);
+        }
+    }
+
+
+    //Redeem investment token + principal
+    //@param amount : amount to reedeem
+    //@param erc20Token: asset to redeem ERC20 token from
+    function investERC20Token(uint amount, address erc20Token) public{
+        if(erc20Token==liquidityPoolProviderAave.getLendingPool()){
+            redeemAave(amount);
+        }
+        else{
+            redeemComp(amount);
+        }
+    }
 
     receive() external payable{}
 
