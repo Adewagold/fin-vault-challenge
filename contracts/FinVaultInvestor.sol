@@ -65,7 +65,7 @@ contract FinVaultInvestor is Ownable {
     // Invest in the pool with the highest interest
     // map user investment information and balances
     function stakeFunds(uint amount) public payable {
-        require(_amount > 0, "amount cannot be 0");
+        require(amount > 0, "amount cannot be 0");
         IERC20 usdc = IERC20(usdcToken);
         totalInvestment = totalInvestment.add(amount);
         balances[msg.sender] = balances[msg.sender].add(amount);
